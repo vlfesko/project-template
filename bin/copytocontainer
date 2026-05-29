@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env.example" ] && source "$PROJECT_ROOT/.env.example"
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+
+APP_CONTAINER=${APP_CONTAINER:-app-main}
+APP_ROOT=${APP_ROOT:-/app}
+APP_LOCAL_SRC=${APP_LOCAL_SRC:-$PROJECT_ROOT/src}
+
+if [ $# -eq 0 ]; then
+  echo "Usage: bin/copytocontainer <path> [<path> ...] | --all"
+  exit 1
+fi
+
+CONTAINER_ID=$("$SCRIPT_DIR/docker-compose" ps -q "$APP_CONTAINER")
+
+if [ ! -d "$APP_LOCAL_SRC" ]; then
+  echo "Host source directory does not exist: $APP_LOCAL_SRC"
+  exit 1
+fi
+
+if [ -z "$CONTAINER_ID" ]; then
+  echo "$APP_CONTAINER container is not running"
+  exit 1
+fi
+
+for ARG in "$@"; do
+  if [ "$ARG" = "--all" ]; then
+    docker cp "$APP_LOCAL_SRC/." "$CONTAINER_ID":"$APP_ROOT/"
+    echo "Completed copying all files from host to container"
+    continue
+  fi
+
+  HOST_PATH="$APP_LOCAL_SRC/$ARG"
+  if [ ! -e "$HOST_PATH" ]; then
+    echo "Host path does not exist: $HOST_PATH"
+    exit 1
+  fi
+
+  CONTAINER_PATH="$APP_ROOT/$ARG"
+  CONTAINER_PARENT=$(dirname "$CONTAINER_PATH")
+
+  if [ -d "$HOST_PATH" ]; then
+    docker exec "$CONTAINER_ID" mkdir -p "$CONTAINER_PATH"
+    docker cp "$HOST_PATH"/. "$CONTAINER_ID":"$CONTAINER_PATH"/
+  else
+    docker exec "$CONTAINER_ID" mkdir -p "$CONTAINER_PARENT"
+    docker cp "$HOST_PATH" "$CONTAINER_ID":"$CONTAINER_PATH"
+  fi
+
+  echo "Completed copying $ARG from host to container"
+done

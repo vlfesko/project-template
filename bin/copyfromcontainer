@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env.example" ] && source "$PROJECT_ROOT/.env.example"
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+
+APP_CONTAINER=${APP_CONTAINER:-app-main}
+APP_ROOT=${APP_ROOT:-/app}
+APP_LOCAL_SRC=${APP_LOCAL_SRC:-$PROJECT_ROOT/src}
+
+if [ $# -eq 0 ]; then
+  echo "Usage: bin/copyfromcontainer <path> [<path> ...] | --all"
+  exit 1
+fi
+
+CONTAINER_ID=$("$SCRIPT_DIR/docker-compose" ps -q "$APP_CONTAINER")
+
+mkdir -p "$APP_LOCAL_SRC"
+
+if [ -z "$CONTAINER_ID" ]; then
+  echo "$APP_CONTAINER container is not running"
+  exit 1
+fi
+
+for ARG in "$@"; do
+  if [ "$ARG" = "--all" ]; then
+    docker cp "$CONTAINER_ID":"$APP_ROOT/." "$APP_LOCAL_SRC/"
+    echo "Completed copying all files from container to host"
+    continue
+  fi
+
+  CONTAINER_PATH="$APP_ROOT/$ARG"
+  HOST_TARGET="$APP_LOCAL_SRC/$ARG"
+  PARENT_DIR=$(dirname "$HOST_TARGET")
+
+  if docker exec "$CONTAINER_ID" test -d "$CONTAINER_PATH"; then
+    mkdir -p "$HOST_TARGET"
+    docker cp "$CONTAINER_ID":"$CONTAINER_PATH"/. "$HOST_TARGET/"
+  else
+    mkdir -p "$PARENT_DIR"
+    docker cp "$CONTAINER_ID":"$CONTAINER_PATH" "$HOST_TARGET"
+  fi
+
+  echo "Completed copying $ARG from container to host"
+done

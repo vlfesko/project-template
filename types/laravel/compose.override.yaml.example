@@ -1,0 +1,12 @@
+# compose.override.yaml — local overrides, never committed (gitignored).
+# Copy this file to compose.override.yaml and uncomment what you need.
+
+# Example: join an external shared network (e.g. n8n infra)
+# services:
+#   db:
+#     networks:
+#       - infra_shared
+#
+# networks:
+#   infra_shared:
+#     external: true

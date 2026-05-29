@@ -1,0 +1,46 @@
+services:
+  db:
+    ports:
+      - "127.0.0.1:3306:3306"
+
+  db_test:
+    image: wodby/mariadb:${MARIADB_VERSION}
+    environment:
+      MYSQL_DATABASE: ${X_DB_TEST_DATABASE}
+      MYSQL_USER: ${X_DB_USERNAME}
+      MYSQL_PASSWORD: ${X_DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${X_DB_ROOT_PASSWORD}
+    networks: [app]
+
+  mailpit:
+    image: axllent/mailpit:latest
+    networks: [app]
+
+  node:
+    ports:
+      - "127.0.0.1:5173:5173"
+
+  web:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-web-http.rule=Host(`${X_APP_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-web-http.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}-web-https.rule=Host(`${X_APP_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-web-https.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-web-https.tls=true"
+      - "traefik.http.services.${PROJECT_NAME}-web.loadbalancer.server.port=80"
+    networks:
+      - proxy
+
+  pma:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-pma-http.rule=Host(`${X_PMA_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-pma-http.entrypoints=web"
+      - "traefik.http.services.${PROJECT_NAME}-pma.loadbalancer.server.port=80"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

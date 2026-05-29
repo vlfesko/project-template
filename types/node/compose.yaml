@@ -1,0 +1,27 @@
+services:
+
+  # ===========================================================================
+  # app-main — Node.js application
+  # ===========================================================================
+  app-main:
+    image: node:${NODE_VERSION}-alpine
+    working_dir: /app
+    volumes:
+      - ./src:/app
+    env_file: env/app.env
+    command: node server.js
+    networks: [app]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${APP_PORT:-3000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app:
+    driver: bridge

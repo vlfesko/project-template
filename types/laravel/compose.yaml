@@ -1,0 +1,124 @@
+services:
+
+  # ===========================================================================
+  # db — MariaDB
+  # ===========================================================================
+  db:
+    image: wodby/mariadb:${MARIADB_VERSION}
+    env_file: env/db.env
+    volumes:
+      - mariadb:/var/lib/mysql
+    networks: [app]
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  # ===========================================================================
+  # app-main — PHP-FPM (Wodby)
+  # ===========================================================================
+  app-main:
+    image: wodby/php:${PHP_VERSION}
+    env_file: env/php.env
+    volumes:
+      - ./src:/var/www/html
+      - ./docker/conf/php/bashrc:/home/wodby/.bashrc
+    networks: [app]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # cron — Laravel scheduler
+  # ===========================================================================
+  cron:
+    image: wodby/php:${PHP_VERSION}
+    env_file: env/php.env
+    volumes:
+      - ./src:/var/www/html
+      - ./docker/conf/cron/crontab:/etc/cron.d/laravel:ro
+    networks: [app]
+    command: crond -f -d 8
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ===========================================================================
+  # worker — Laravel queue worker
+  # ===========================================================================
+  worker:
+    image: wodby/php:${PHP_VERSION}
+    env_file: env/php.env
+    volumes:
+      - ./src:/var/www/html
+    networks: [app]
+    command: php /var/www/html/artisan queue:work --tries=3
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  # ===========================================================================
+  # node — Node.js / Vite
+  # ===========================================================================
+  node:
+    image: node:${NODE_VERSION}-alpine
+    working_dir: /var/www/html
+    volumes:
+      - ./src:/var/www/html
+    networks: [app]
+    command: sh -c "npm install && npm run dev"
+
+  # ===========================================================================
+  # web — Nginx
+  # ===========================================================================
+  web:
+    image: wodby/nginx:${NGINX_VERSION}
+    env_file: env/nginx.env
+    volumes:
+      - ./src:/var/www/html
+      - ./docker/conf/nginx/laravel.conf.tmpl:/etc/gotpl/presets/laravel.conf.tmpl:ro
+    networks: [app]
+    depends_on:
+      - app-main
+    restart: unless-stopped
+
+  # ===========================================================================
+  # redis — Cache / queue driver
+  # ===========================================================================
+  redis:
+    image: redis:${REDIS_VERSION}-alpine
+    networks: [app]
+    restart: unless-stopped
+
+  # ===========================================================================
+  # pma — PhpMyAdmin
+  # ===========================================================================
+  pma:
+    image: phpmyadmin:latest
+    environment:
+      PMA_HOST: db
+      PMA_USER: ${X_DB_USERNAME}
+      PMA_PASSWORD: ${X_DB_PASSWORD}
+    networks: [app]
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  mariadb:

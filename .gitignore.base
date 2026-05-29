@@ -1,0 +1,9 @@
+.DS_Store
+.env
+env/*.env
+compose.override.yaml
+docker/data/
+.gstack/
+.pytest_cache/
+__pycache__/
+*.pyc

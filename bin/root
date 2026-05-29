@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env.example" ] && source "$PROJECT_ROOT/.env.example"
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+
+APP_CONTAINER=${APP_CONTAINER:-app-main}
+
+if [ $# -eq 0 ]; then
+  exec "$SCRIPT_DIR/docker-compose" exec --user 0 "$APP_CONTAINER" sh
+fi
+
+exec "$SCRIPT_DIR/docker-compose" exec --user 0 "$APP_CONTAINER" "$@"

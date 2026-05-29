@@ -1,0 +1,8 @@
+export PS1="\u@${WODBY_APP_NAME:-php}.${WODBY_ENVIRONMENT_NAME:-container}:\w $ "
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/wodby/.composer/vendor/bin:/var/www/html/vendor/bin:/var/www/html/bin
+
+alias pa='php artisan'
+alias pam='php artisan migrate'
+alias pams='php artisan migrate --seed'
+alias pamf='php artisan migrate:fresh'
+alias pamfs='php artisan migrate:fresh --seed'

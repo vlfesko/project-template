@@ -1,0 +1,3 @@
+services:
+  pma:
+    image: arm64v8/phpmyadmin

@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+PROJECT_ROOT=$(cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env.example" ] && source "$PROJECT_ROOT/.env.example"
+# shellcheck disable=SC1091
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+
+APP_CONTAINER=${APP_CONTAINER:-app-main}
+
+[ -z "${1:-}" ] && echo "Please specify a command (ex. ls)" && exit 1
+
+# -T disables pseudo-tty allocation (for piped/scripted use)
+exec "$SCRIPT_DIR/docker-compose" exec -T "$APP_CONTAINER" "$@"

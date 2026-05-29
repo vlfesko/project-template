@@ -1,0 +1,15 @@
+services:
+  app-main:
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.rule=Host(`${X_APP_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.tls=true"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.tls.certresolver=le"
+      - "traefik.http.services.${PROJECT_NAME}-app.loadbalancer.server.port=${APP_PORT:-8000}"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

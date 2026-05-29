@@ -1,0 +1,25 @@
+services:
+
+  # ===========================================================================
+  # app-main — Your application
+  # ===========================================================================
+  app-main:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    env_file: env/app.env
+    networks: [app]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT:-8000}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  app:
+    driver: bridge
