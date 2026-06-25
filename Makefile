@@ -27,7 +27,7 @@ pull:
 	@echo "Pulling container images for $(PROJECT_NAME)..."
 	$(DOCKER_COMPOSE) $(WRAPPER_FLAGS) pull $(filter-out $@,$(MAKECMDGOALS))
 
-## preflight	:	Check external prerequisites (shared `$(PROXY_NETWORK)` network).
+## preflight	:	Check external prerequisites (shared `proxy` network).
 preflight:
 	@if grep -qs '$(PROXY_NETWORK)' compose*.yaml && ! docker network inspect $(PROXY_NETWORK) >/dev/null 2>&1; then \
 		echo ""; \
