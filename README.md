@@ -93,29 +93,24 @@ hosts-file entry is needed. Host names are derived from `PROJECT_NAME` via the
 
 ### Vite HMR (Laravel)
 
-The `node` service is routed at `X_VITE_DOMAIN`, so the app's `vite.config.js` must
-advertise that host instead of `localhost:5173`:
+The `node` service runs the Vite dev server and is routed by Traefik at `X_VITE_DOMAIN`
+(over `wss`/443), so `vite.config.js` must advertise that host instead of `localhost:5173`.
+`make install` patches this automatically; for an existing app, add to the `server` block:
 
 ```js
-export default defineConfig({
-  // ...
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
-    cors: true,
-    allowedHosts: [process.env.VITE_DOMAIN],
-    hmr: {
-      host: process.env.VITE_DOMAIN, // e.g. vite.my-app.docker.localhost
-      protocol: 'wss',
-      clientPort: 443,
-    },
-  },
-})
+server: {
+  host: '0.0.0.0',
+  origin: process.env.VITE_DOMAIN ? 'https://' + process.env.VITE_DOMAIN : undefined,
+  allowedHosts: true,
+  hmr: process.env.VITE_DOMAIN
+    ? { host: process.env.VITE_DOMAIN, protocol: 'wss', clientPort: 443 }
+    : undefined,
+}
 ```
 
-The `node` service's compose overlay already injects `VITE_DOMAIN` (from
-`X_VITE_DOMAIN`) into the container, so the config above works as-is.
+`server.origin` makes `@vite` emit asset URLs on the Traefik subdomain; `hmr` points the
+HMR socket there too. The `node` service's compose overlay injects `VITE_DOMAIN` (from
+`X_VITE_DOMAIN`), so this works without per-project edits.
 
 ---
 
@@ -159,12 +154,33 @@ All app-shell and copy scripts read from `.env.example` / `.env`:
 Base targets (all types): `help`, `build`, `pull`, `up`, `down`, `start`, `restart`,
 `stop`, `prune`, `ps`, `shell`, `logs`, `init-env`, `preflight`.
 
-Project-specific targets live in `Makefile.project.mk` (included automatically).
+Project-specific targets live in `Makefile.project.mk` (included automatically). Every
+type provides `init` (creates `.env` and `env/*.env` from the examples).
+
+### Generic extras
+
+`init`
 
 ### Laravel extras
 
-`init`, `artisan`, `composer`, `pint`, `test`, `refresh`, `apidocs`,
+`init`, `install`, `artisan`, `composer`, `pint`, `test`, `refresh`, `apidocs`,
 `migrate`, `deploy`, `tail-logs`, `post-create`, `cleanup`
+
+**Bootstrapping a Laravel app** — in a fresh Laravel project (empty `src/`):
+
+```bash
+make install
+```
+
+This installs `laravel/installer`, runs `laravel new --livewire --pest`, wires Vite HMR
+for Traefik, migrates, installs dev packages, and brings the stack up — leaving a running
+app at `https://<project>.docker.localhost`. It aborts if `src/` already has an app.
+
+Connection settings (DB, Redis, Mailpit, `APP_URL`) are supplied as **container
+environment variables** in `compose.yaml`, not written into `src/.env`. Laravel's
+`Dotenv::createImmutable` lets those real env vars win, so `src/.env` keeps its install
+defaults and is never edited. `PHP_FPM_CLEAR_ENV=no` (in `env/php.env`) lets the FPM
+workers see them.
 
 ### Node extras
 
@@ -197,7 +213,7 @@ template/
 │   │   ├── .env.example
 │   │   ├── .gitignore
 │   │   ├── env/php.env.example
-│   │   └── docker/conf/{cron,nginx,php}
+│   │   └── docker/conf/{cron,php}
 │   └── node/
 │       ├── Makefile.project.mk
 │       ├── compose.yaml

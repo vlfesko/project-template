@@ -1,3 +1,28 @@
+# =============================================================================
+# Laravel runtime environment
+# Injected into the PHP services so the framework reads connection settings from
+# the container env. Laravel's Dotenv::createImmutable does NOT override real env
+# vars, so these win over src/.env — meaning src/.env stays at its default and is
+# never edited. Local-first defaults; override in compose.production.yaml for prod.
+# =============================================================================
+x-laravel-env: &laravel-env
+  APP_NAME: ${PROJECT_NAME}
+  APP_ENV: local
+  APP_DEBUG: "true"
+  APP_URL: ${X_APP_URL}
+  APP_TIMEZONE: ${X_APP_TIMEZONE}
+  DB_CONNECTION: mariadb
+  DB_HOST: db
+  DB_PORT: "3306"
+  DB_DATABASE: ${X_DB_DATABASE}
+  DB_USERNAME: ${X_DB_USERNAME}
+  DB_PASSWORD: ${X_DB_PASSWORD}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  MAIL_MAILER: smtp
+  MAIL_HOST: mailpit
+  MAIL_PORT: "1025"
+
 services:
 
   # ===========================================================================
@@ -10,7 +35,8 @@ services:
       - mariadb:/var/lib/mysql
     networks: [app]
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      # wodby/mariadb ships mariadb-admin, not the official image's healthcheck.sh.
+      test: ["CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -23,6 +49,7 @@ services:
   app-main:
     image: wodby/php:${PHP_VERSION}
     env_file: env/php.env
+    environment: *laravel-env
     volumes:
       - ./src:/var/www/html
       - ./docker/conf/php/bashrc:/home/wodby/.bashrc
@@ -38,6 +65,7 @@ services:
   cron:
     image: wodby/php:${PHP_VERSION}
     env_file: env/php.env
+    environment: *laravel-env
     volumes:
       - ./src:/var/www/html
       - ./docker/conf/cron/crontab:/etc/cron.d/laravel:ro
@@ -54,6 +82,7 @@ services:
   worker:
     image: wodby/php:${PHP_VERSION}
     env_file: env/php.env
+    environment: *laravel-env
     volumes:
       - ./src:/var/www/html
     networks: [app]
@@ -84,7 +113,6 @@ services:
     env_file: env/nginx.env
     volumes:
       - ./src:/var/www/html
-      - ./docker/conf/nginx/laravel.conf.tmpl:/etc/gotpl/presets/laravel.conf.tmpl:ro
     networks: [app]
     depends_on:
       - app-main

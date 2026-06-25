@@ -1,6 +1,7 @@
 .PHONY: init npm dev npm-build test
 
-ENV_FILES :=
+# List service env files (without .env suffix) to copy from env/*.env.example
+ENV_FILES := app
 
 ## init	:	Initialize .env and env/*.env from examples.
 init: init-env
