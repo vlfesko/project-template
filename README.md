@@ -91,11 +91,19 @@ hosts-file entry is needed. Host names are derived from `PROJECT_NAME` via the
 > A database has no published port by design. To attach a GUI client, add a temporary
 > binding in `compose.override.yaml` (gitignored) with a port that is free on your host.
 
-### Vite HMR (Laravel)
+### Vite assets & HMR (Laravel)
 
-The `node` service runs the Vite dev server and is routed by Traefik at `X_VITE_DOMAIN`
-(over `wss`/443), so `vite.config.js` must advertise that host instead of `localhost:5173`.
-`make install` patches this automatically; for an existing app, add to the `server` block:
+**Default (preview): built assets.** The `node` service idles; `make install` runs
+`npm run build`, and `@vite` serves the compiled assets from `public/build` via nginx on
+the **app's own domain** (`X_APP_DOMAIN`). Because that's the single domain you already
+trust, the page renders fully styled with no extra cert to accept. Rebuild after changing
+front-end code with `make npm-build`.
+
+**Opt-in: HMR (`make dev`).** This starts the Vite dev server in the `node` container,
+routed by Traefik at `X_VITE_DOMAIN` over `wss`/443. Since that's a *separate* subdomain,
+your browser must trust its self-signed cert once — open `https://<vite-domain>` and
+accept it — otherwise the browser blocks the dev assets (`ERR_CERT_COMMON_NAME_INVALID`).
+`make install` already configures `vite.config.js` for this:
 
 ```js
 server: {
@@ -108,9 +116,9 @@ server: {
 }
 ```
 
-`server.origin` makes `@vite` emit asset URLs on the Traefik subdomain; `hmr` points the
-HMR socket there too. The `node` service's compose overlay injects `VITE_DOMAIN` (from
-`X_VITE_DOMAIN`), so this works without per-project edits.
+`server.origin` makes `@vite` emit asset URLs on the Vite subdomain; `hmr` points the HMR
+socket there too. The `node` service injects `VITE_DOMAIN` (from `X_VITE_DOMAIN`), so this
+works without per-project edits. Stop HMR (Ctrl+C) to return to built-asset preview mode.
 
 ---
 
@@ -163,8 +171,8 @@ type provides `init` (creates `.env` and `env/*.env` from the examples).
 
 ### Laravel extras
 
-`init`, `install`, `artisan`, `composer`, `pint`, `test`, `refresh`, `apidocs`,
-`migrate`, `deploy`, `tail-logs`, `post-create`, `cleanup`
+`init`, `install`, `dev`, `npm-build`, `artisan`, `composer`, `pint`, `test`, `refresh`,
+`apidocs`, `migrate`, `deploy`, `tail-logs`, `post-create`, `cleanup`
 
 **Bootstrapping a Laravel app** — in a fresh Laravel project (empty `src/`):
 
@@ -172,9 +180,10 @@ type provides `init` (creates `.env` and `env/*.env` from the examples).
 make install
 ```
 
-This installs `laravel/installer`, runs `laravel new --livewire --pest`, wires Vite HMR
-for Traefik, migrates, installs dev packages, and brings the stack up — leaving a running
-app at `https://<project>.docker.localhost`. It aborts if `src/` already has an app.
+This installs `laravel/installer`, runs `laravel new --livewire --pest`, configures Vite,
+migrates, installs dev packages, builds front-end assets, and brings the stack up —
+leaving a styled, running app at `https://<project>.docker.localhost` (built assets served
+on the app domain; `make dev` for HMR). It aborts if `src/` already has an app.
 
 Connection settings (DB, Redis, Mailpit, `APP_URL`) are supplied as **container
 environment variables** in `compose.yaml`, not written into `src/.env`. Laravel's

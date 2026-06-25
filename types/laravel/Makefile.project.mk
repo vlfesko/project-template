@@ -1,4 +1,4 @@
-.PHONY: init install post-create cleanup artisan composer pint test refresh apidocs deploy migrate tail-logs
+.PHONY: init install dev npm-build post-create cleanup artisan composer pint test refresh apidocs deploy migrate tail-logs
 
 ENV_FILES := php db nginx
 LARAVEL_BIN := /home/wodby/.composer/vendor/bin/laravel
@@ -16,9 +16,10 @@ init: init-env
 	@[ -d src ] || (mkdir -p src && echo "Created src/")
 
 ## install	:	Bootstrap a fresh Laravel app into src/ and bring the stack online.
-##		Installs via laravel/installer (--livewire --pest), wires Vite HMR for
-##		Traefik, migrates, installs dev packages. DB/Redis/Mail connection comes
-##		from the container env (compose.yaml), so src/.env is never edited.
+##		Installs via laravel/installer (--livewire --pest), configures Vite,
+##		migrates, installs dev packages, and builds front-end assets (preview
+##		mode — run `make dev` for HMR). DB/Redis/Mail connection comes from the
+##		container env (compose.yaml), so src/.env is never edited.
 ##		Aborts if src/ already contains an app.
 install: preflight
 	@if [ -f src/artisan ]; then \
@@ -47,13 +48,26 @@ install: preflight
 	@$(MAKE) migrate
 	@echo "==> Installing dev packages..."
 	@$(MAKE) post-create
+	@echo "==> Building front-end assets (preview mode; run 'make dev' for HMR)..."
+	@$(DOCKER_COMPOSE) up -d node >/dev/null
+	@$(DOCKER_COMPOSE) exec -T node sh -lc "npm install && npm run build"
+	@$(DOCKER_COMPOSE) exec -T app-main rm -f public/hot
 	@echo "==> Restarting services to pick up the freshly installed app..."
-	@$(DOCKER_COMPOSE) restart app-main web node worker
+	@$(DOCKER_COMPOSE) restart app-main web worker
 	@echo ""
-	@echo "Laravel is ready:"
+	@echo "Laravel is ready (built assets, served on the app domain):"
 	@echo "  App  : $(X_APP_URL)"
 	@echo "  PMA  : http://$(X_PMA_DOMAIN)"
-	@echo "  Vite : https://$(X_VITE_DOMAIN)"
+	@echo "  HMR  : make dev   (then trust the cert for https://$(X_VITE_DOMAIN) once)"
+
+## dev	:	Run the Vite dev server in the node container for HMR (Ctrl+C to stop).
+##		Serves assets at https://X_VITE_DOMAIN — trust that cert once in your browser.
+dev:
+	$(DOCKER_COMPOSE) exec node npm run dev
+
+## npm-build	:	Rebuild front-end assets (Vite production build).
+npm-build:
+	$(DOCKER_COMPOSE) exec node npm run build
 
 ## post-create	:	Install common dev packages (blueprint, larastan, debugbar, pint, ray).
 post-create:
