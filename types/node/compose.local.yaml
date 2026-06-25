@@ -1,4 +1,18 @@
 services:
   app-main:
-    ports:
-      - "127.0.0.1:${APP_PORT:-3000}:${APP_PORT:-3000}"
+    # Reachable at https://${X_APP_DOMAIN} through the shared local Traefik.
+    # No host port is published, so any number of projects run in parallel.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-app-http.rule=Host(`${X_APP_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-app-http.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.rule=Host(`${X_APP_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-app-https.tls=true"
+      - "traefik.http.services.${PROJECT_NAME}-app.loadbalancer.server.port=${APP_PORT:-3000}"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
