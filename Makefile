@@ -2,7 +2,7 @@ include .env.example
 -include .env
 -include Makefile.project.mk
 
-.PHONY: help build pull up down start restart stop prune ps shell logs init-env
+.PHONY: help build pull up down start restart stop prune ps shell logs init-env preflight
 
 default: up
 
@@ -10,6 +10,7 @@ SHELL := /bin/bash
 DEFAULT_CONTAINER := $(or $(APP_CONTAINER),app-main)
 DOCKER_COMPOSE := ./bin/docker-compose
 HELP_FILES := Makefile Makefile.project.mk
+PROXY_NETWORK ?= proxy
 WRAPPER_FLAGS := $(if $(filter 1 true yes on,$(NO_DEV)),--no-dev) $(if $(filter 1 true yes on,$(NO_SRC)),--no-src)
 
 ## help	:	Print commands help.
@@ -26,10 +27,21 @@ pull:
 	@echo "Pulling container images for $(PROJECT_NAME)..."
 	$(DOCKER_COMPOSE) $(WRAPPER_FLAGS) pull $(filter-out $@,$(MAKECMDGOALS))
 
+## preflight	:	Check external prerequisites (shared `$(PROXY_NETWORK)` network).
+preflight:
+	@if grep -qs '$(PROXY_NETWORK)' compose*.yaml && ! docker network inspect $(PROXY_NETWORK) >/dev/null 2>&1; then \
+		echo ""; \
+		echo "  WARNING: external Docker network '$(PROXY_NETWORK)' is missing."; \
+		echo "  Services route through a shared Traefik on this network — 'up' will fail without it."; \
+		echo "  Create it once with:  docker network create $(PROXY_NETWORK)"; \
+		echo ""; \
+		exit 1; \
+	fi
+
 ## up	:	Start up containers.
 ##		Use `NO_SRC=1` to start without bind-mounts from `src/`.
 ##		Use `NO_DEV=1` to skip `compose.dev.yaml`.
-up:
+up: preflight
 	@echo "Starting up containers for $(PROJECT_NAME)..."
 	$(DOCKER_COMPOSE) $(WRAPPER_FLAGS) up -d --remove-orphans $(filter-out $@,$(MAKECMDGOALS))
 

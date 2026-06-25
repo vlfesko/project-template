@@ -1,7 +1,6 @@
 services:
-  db:
-    ports:
-      - "127.0.0.1:3306:3306"
+  # No host port is published for db — connect from the host with `bin/mysql`
+  # (runs `docker compose exec db`). This keeps the port free for parallel projects.
 
   db_test:
     image: wodby/mariadb:${MARIADB_VERSION}
@@ -16,9 +15,23 @@ services:
     image: axllent/mailpit:latest
     networks: [app]
 
+  # Vite dev server — reachable at https://${X_VITE_DOMAIN} through the shared
+  # local Traefik. No host port, so HMR never collides across parallel projects.
+  # Requires matching server.hmr config in the app's vite.config.js — see README.
   node:
-    ports:
-      - "127.0.0.1:5173:5173"
+    environment:
+      # Exposed to vite.config.js so the dev server / HMR advertise the Traefik host.
+      VITE_DOMAIN: ${X_VITE_DOMAIN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${PROJECT_NAME}-vite-http.rule=Host(`${X_VITE_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-vite-http.entrypoints=web"
+      - "traefik.http.routers.${PROJECT_NAME}-vite-https.rule=Host(`${X_VITE_DOMAIN}`)"
+      - "traefik.http.routers.${PROJECT_NAME}-vite-https.entrypoints=websecure"
+      - "traefik.http.routers.${PROJECT_NAME}-vite-https.tls=true"
+      - "traefik.http.services.${PROJECT_NAME}-vite.loadbalancer.server.port=5173"
+    networks:
+      - proxy
 
   web:
     labels:
